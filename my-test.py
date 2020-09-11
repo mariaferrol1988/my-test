@@ -1,32 +1,18 @@
-# Librerías
 import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+from altair import datum
 from sklearn.linear_model import LinearRegression
+import time
 
 
 # Funciones ------------------------------------------------------------------------
 @st.cache(suppress_st_warning=True,show_spinner=False)
 # Lectura de df
-def read_df(dfx,cmp,sp,cols):
-    df0 = pd.read_csv(dfx,compression = cmp, sep = sp, usecols = cols)
+def read_df(dfx,sp,cols):
+    df0 = pd.read_csv(dfx, sep = sp, usecols = cols)
     return df0 
-
-# Resetear nombres de columnas
-def reset_columns(df):
-    df.columns = ['_'.join(col) for col in df.columns.values]
-    return df
-
-# Función para hacer groupby y sumar - Necesito esto?
-#def group_perc(dfx,var1,var2,var3,cod1):
-#    df0 = (df.groupby([var1,var2])[var3].count() / df.groupby([var1])[var3].count() *100).reset_index()
-#    return df0[df0[var2] ==cod1]
-
-# Función para hacer groupby y la media u otra función - Necesito esto?
-#def group_func(dfx,var1,var2,func):
-#    df0 = df.groupby(var1)[var2].agg([func]).reset_index()
-#    return df0
 
 # Función para definir dummies modelo (ausencia del atributo seleccionado en el cuestionario)
 def define_var_no(var,word):
@@ -51,8 +37,6 @@ def my_result(x):
     else:
         return 'Tu felicidad estimada es ' + str(round(float(x),2)) + ' sobre 10. Eso significa que estás en la media.'
 
-# ----------------------------------------------------------------------------------
-
 # Slider cuestionario --------------------------------------------------------------    
     
 st.sidebar.title("Bienvenido al test :smile:")
@@ -61,9 +45,6 @@ st.sidebar.markdown("Contesta a las siguientes para saber tu puntuación!")
 estadosalud = st.sidebar.selectbox('¿Cómo valorarías tu salud en general?', \
                                    ('Muy buena', 'Buena', 'Regular', 'Mala','Muy mala'))
 salud_dic = {'Muy buena':1, 'Buena':2, 'Regular':3, 'Mala':4,'Muy mala':5}
-chronicdis = st.sidebar.selectbox('¿Tienes alguna enfermedad o condición crónica?',
-                                ('Sí','No','Prefiero no revelarlo :)'))
-limitacion = st.sidebar.selectbox("¿Te has visto limitado en tu vida diaria por motivos de salud en los últimos 6 meses?",('No, para nada', 'Sí, pero sólo levemente','Sí, me he visto muy limitado :('))
 economíahogar = st.sidebar.selectbox('¿Qué nivel de dificultad encuentras para llegar a fin de mes?' \
                                      ,('Muy difícil','Difícil','Más bien difícil',
                                        'Más bien fácil', 'Fácil','Muy fácil'))
@@ -71,19 +52,22 @@ econ_dic = {'Muy difícil':1, 'Difícil':2, 'Más bien difícil':3, 'Más bien f
 gastoshogar = st.sidebar.selectbox("Por último puedes decirme cuánto te suponen los gastos de vivienda",
                                 ("El impacto es bajo","El impacto es medio","El impacto es alto"))
 priv_mat = st.sidebar.multiselect('¿Has tenido problemas económicos que te impidieran permitirte alguna de las siguientes cosas?',
-                                ("Acceder a interet","Realizar actividades de ocio","Salir con amigos", \
+                                ("Realizar actividades de ocio","Salir con amigos", \
                                  "Gastar dinero en lo que me gusta","Comprar calzado", "Comprar ropa"))
-renta = st.sidebar.number_input("¿Podrías decirme tu renta anual?", -55000, 150000,0)
+renta = st.sidebar.number_input("¿Podrías decirme tu renta anual?", -55000, 400000,0)
+
+# Selección de KPIs
 
 
-# Datasets ------------------------------------------------------------------------
+# Revisar columnas que no necesito
+model = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/data_set_modelovf.csv',';', None)
+# Revisar para qué gráficos es este dataset
+df_visualization = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/visualizationV2.csv', ';', None)
+# df resultados nacionales para gráficos de líneas evolutivos
+df_vis_nac = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/nac_visualization.csv',';', None)
+df = pd.read_csv('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/regions_visualization.csv', sep = ';')
+df_PIB = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/PIB.csv', ';', None)
 
-model = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/dataset_modelo.csv', None ,';', None)
-model['LifeSatisfaction_int'] = model['LifeSatisfaction2'].astype(int) # Nota, meter esto directamente en el modelo o en una función
-df_visualization2 = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/visualizationV2.csv', None ,';', None)
-df_corr = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterDataSciences/master/Notebooks/Files/correlations.csv', None ,';', None)
-
-# ----------------------------------------------------------------------------------
 
 # Modelo cálculo puntuaciones-------------------------------------------------------
 
@@ -91,40 +75,40 @@ df_corr = read_df('https://raw.githubusercontent.com/mariaferrol1988/TFM_MasterD
 ## df_qnr
 df_qnr = pd.DataFrame({'vhRentaa': [renta],
                       'HousingCost_HighImpactHH':[define_var_yes(gastoshogar,'El impacto es alto')], 
-                      'CrConditions_YChronic':[define_var_yes(chronicdis,'Sí')],
-                      'HLimitations_SerLimited':[define_var_yes(limitacion,'Sí, me he visto muy limitado :(')], 
-                      'MDInternet_Yes':[define_var_no(priv_mat,'Acceder a interet')] ,
                       'MDSelf_Yes':[define_var_no(priv_mat,'Gastar dinero en lo que me gusta')],
                       'MDLeisure_Yes':[define_var_no(priv_mat,'Realizar actividades de ocio')],
                       'MDFriends_Yes':[define_var_no(priv_mat,'Salir con amigos')],
                       'MDShoes_Yes':[define_var_no(priv_mat,'Comprar calzado')], 
                       'MDClothes_Yes':[define_var_no(priv_mat,'Comprar ropa')], 
                       'CHealth':[salud_dic[estadosalud]],  
-                      'AREMonth':[econ_dic[economíahogar]],
-                      'CHealth_D':[estadosalud],  
-                      'AREMonth_D':[economíahogar]})
+                      'AREMonth':[econ_dic[economíahogar]]})
     
 ## Variables modelo
-X = model[['vhRentaa','HousingCost_HighImpactHH','CrConditions_YChronic','HLimitations_SerLimited', 'MDInternet_Yes',
+X = model[['vhRentaa','HousingCost_HighImpactHH',
      'MDSelf_Yes', 'MDLeisure_Yes',  'MDFriends_Yes', 'MDShoes_Yes', 'MDClothes_Yes','CHealth','AREMonth']]
-y = model['LifeSatisfaction2']
+y = model['LifeSatisfaction0']
 
 ## Modelo
 reg = LinearRegression()
 reg.fit(X, y)
-prediction =reg.predict(df_qnr[['vhRentaa','HousingCost_HighImpactHH','CrConditions_YChronic','HLimitations_SerLimited', 'MDInternet_Yes',
+prediction =reg.predict(df_qnr[['vhRentaa','HousingCost_HighImpactHH',
      'MDSelf_Yes', 'MDLeisure_Yes',  'MDFriends_Yes', 'MDShoes_Yes', 'MDClothes_Yes','CHealth','AREMonth']])
 
 # ----------------------------------------------------------------------------------
+st.title('Prediciendo la felicidad')
+st.markdown('Un proyecto experimental divulgativo, que aborda el eterno dilema que cada vez está más de moda ¿Depende la felicidad realmente de nosotros o hay algo más?') 
+st.markdown('Puedes realizar el test si quieres saber tu puntuación y cambiar las respuestas si quieres explorar cómo impactan los distintos factores en la felicidad de las personas') 
 
-# Charts ---------------------------------------------------------------------------
+st.subheader(my_result(prediction))
+st.markdown('\n')
+st.markdown('\n')
 
-#### df distribución + almacenamiento predicciones persona
 
 df13_18grouped = model.groupby(['Year','LifeSatisfaction0'])['Weight'].sum().reset_index()
-dfpred = pd.DataFrame({'Person':['Tu felicidad estimada'],'value':[float(prediction)],'point':[500000]})
+dfpred = pd.DataFrame({'Person':['Tu felicidad estimada'],'value':[float(prediction)],'bar':[2000000]})
 
 #### histrograma felicidad con observaciones reales 2013 y 2018
+
 
 hist_happiness = alt.Chart(df13_18grouped).mark_area(
     opacity=0.5,
@@ -141,62 +125,96 @@ hist_happiness = alt.Chart(df13_18grouped).mark_area(
     tooltip=[alt.Tooltip('LifeSatisfaction0', title = 'Nivel de felicidad'),
              alt.Tooltip('Weight', title = 'Número de personas',format=',.2s')]
 ).properties(
-    width=550,
-    height=300
+    width=700,
+    height=400
 )
 
-#### Predicción sobre la felicidd del individuo en punto / ver otras opciones
+#### Predicción sobre la felicidad del individuo en punto / ver otras opciones
 
-pred_point = alt.Chart(dfpred).mark_circle(color = 'black', size = 50).encode(
+pred_bar = alt.Chart(dfpred).mark_bar(color = 'black', size = 1).encode(
     alt.X('value'),
-    alt.Y('point'),
+    alt.Y('bar'),
     tooltip=[alt.Tooltip('value', title = 'Tu nivel de felicidad',format=',.2s')]
 ).properties(
-    width=550,
-    height=300
+    width=700,
+    height=400
 )    
 
 #### Texto de la predicción
 
 pred_text = alt.Chart(dfpred).mark_text(dy=-15, color='black', size = 12).encode(
         alt.X('value'),
-        alt.Y('point'),
+        alt.Y('bar'),
         text=alt.Text('Person:N'))
 
 happines_histogram = alt.layer(
-    hist_happiness, pred_point, pred_text
+    hist_happiness, pred_bar, pred_text
 ).properties(
-    width=600, height=300
+    width=700, height=400
 ).configure_view(
     strokeWidth=0
 )
 
-## Introducción----------------------------------------------------------------------  
+happines_histogram 
 
-#### df felicidad
+st.markdown('Aunque parece evidente que las circunstancias vitales impactan en la felicidad de las personas en la actualidad tendemos a culpar al individuo en todos lo ámbitos, incluída la finalidad vita por antonomasia: Ser Féliz. Esta reconstrucción teórica basada en predicciones realizadas a través de los años 2013 y 2018 busca dar una visión transversal con el objetivo de reflexionar sobre las condiciones que hacen que unas personas tengan mayor probabilidad de ser feliz que otras.')
+st.markdown('\n')
 
-df_happiness = df_visualization2.groupby(['Year','Quintiles'])['Individuos_quintiles'].mean().reset_index()
+#### PIB
+st.subheader('Evolución del PIB')
+st.markdown('\n')
+st.markdown('\n')
+
+PIB = alt.Chart(df_PIB).mark_bar().encode(
+    x = alt.X('Year:O',
+             title = 'Año'),
+    y = alt.Y('PIB_percapita_Nacional',
+              title = 'PIB per cápita € (000)',
+              scale=alt.Scale(domain = [0.,30.])),
+    tooltip = [alt.Tooltip('Year', title = 'Año'),
+               alt.Tooltip('PIB_percapita_Nacional', 
+                           title = 'PIB',
+                           format = ',.2f')]
+).properties(
+    height = 400,
+    width = 700)
+
+PIB
+
+st.markdown('El contexto no es siempre el mismo, y durante los últimos 10 años ha habido cambios drásticos que han impactado drásticamente en en las condiciones de vida de las personas.')
+
+
+#### df Chart2
+
+
+# Charts2: Evolución felicidad en España---------------------------------------------
+st.subheader('Evolución estimada de la felicidad estimada en España años 2008 a 2018')
+st.markdown('\n')
+st.markdown('\n')
+
+df_Chart2= df_vis_nac.groupby(['Year','Quintiles'])['Weight'].mean().reset_index()
 
 #### Filtro
 nearest = alt.selection(type='single', nearest=True, on='mouseover',
                         fields=['Year'], empty='none')
 
 #### Gráfico felicidad por quintiles
-line_quintile = alt.Chart(df_happiness).mark_line(interpolate = 'monotone').encode(
-    alt.X('Year:O', title = 'Año',
+line_quintiles = alt.Chart(df_Chart2).mark_line(interpolate = 'monotone', size = 2).encode(
+    alt.X('Year:N', title = 'Año',
           axis=alt.Axis(values= [2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018])),
-    alt.Y('sum(Individuos_quintiles):Q', 
+    alt.Y('sum(Weight):Q', 
           title = 'Individuos', 
           axis = alt.Axis(format =',.2s'),
           scale=alt.Scale(domain=[6000000, 12000000])),
-    color='Quintiles'
+    alt.Color('Quintiles',
+              legend = alt.Legend(orient = 'bottom-left'))
 ).properties(
-    height = 300,
-    width = 600
+    height = 450,
+    width = 700
 )
 
 
-selectors = alt.Chart(df_happiness).mark_point().encode(
+selectors = alt.Chart(df_Chart2).mark_point().encode(
     x='Year:N',
     opacity=alt.value(0),
 ).add_selection(
@@ -204,165 +222,271 @@ selectors = alt.Chart(df_happiness).mark_point().encode(
 )
 
 # Puntos a mostrar
-points_quintiles = line_quintile.mark_point().encode(
+points_quintiles = line_quintiles.mark_point().encode(
     opacity=alt.condition(nearest, alt.value(1), alt.value(0))
 )
 
 # Texto a mostrar 
-text_quintiles = line_quintile.mark_text(align='left', dx=5, dy=-5).encode(
-    text=alt.condition(nearest,'sum(Individuos_quintiles):Q', alt.value(' '), format=',.2s')
+text_quintiles = line_quintiles.mark_text(align='left', dx=5, dy=-5).encode(
+    text=alt.condition(nearest,'sum(Weight):Q', alt.value(' '), format=',.2s')
 )
 
 # Regla para el seletor
-rules_quintiles = alt.Chart(df_happiness).mark_rule(color='gray').encode(
+rules_quintiles = alt.Chart(df_Chart2).mark_rule(color='gray').encode(
     x='Year:N',
 ).transform_filter(
     nearest
 )
 
-# Put the five layers into a chart and bind the data
+# Chart
 happines_distribution = alt.layer(
-    line_quintile, selectors, points_quintiles, rules_quintiles, text_quintiles
+    line_quintiles, selectors, points_quintiles, rules_quintiles, text_quintiles
 ).properties(
-    width=600, height=300
-).configure_view(
-    strokeWidth=0
+    width=700, height= 450
 )
 
-
-## Grid de correlaciones  ----------------------------------------------------  
-
-#### base con selección de variables a mostrar (Top 15 variables por correlación con la felicidad
-
-base_corr = alt.Chart(df_corr).encode(
-        alt.Y('variable_2:N', 
-              title = None),
-        alt.X('variable_1:N',
-             title = None)
-).transform_filter(
-    alt.FieldOneOfPredicate(field= 'variable_1', oneOf=['Felicidad','Vacaciones_Sí', 'Ocio en general Sí', 
-                                                     'Gasto en uno mismo Sí','"Colchón" económico Sí', 
-                                                     'Ocio con amigos Sí','Compra de ropa Sí',
-                                                     'Impacto medio coste vivienda','Limitaciones físicas No',
-                                                     'Acceso a internet Sí','Carencia Material Severa No',
-                                                     'Calefacción Sí','Riesgo de pobreza No', 
-                                                     'Compra de zapatos Sí','Ordenador Sí','Enfermedades Crónicas No'])
-).transform_filter(
-    alt.FieldOneOfPredicate(field= 'variable_2', oneOf=['Felicidad','Vacaciones_Sí', 'Ocio en general Sí', 
-                                                     'Gasto en uno mismo Sí','"Colchón" económico Sí', 
-                                                     'Ocio con amigos Sí','Compra de ropa Sí',
-                                                     'Impacto medio coste vivienda','Limitaciones físicas No',
-                                                     'Acceso a internet Sí','Carencia Material Severa No',
-                                                     'Calefacción Sí','Riesgo de pobreza No', 
-                                                     'Compra de zapatos Sí','Ordenador Sí','Enfermedades Crónicas No'])
-).properties(
-    height = 650,
-    width = 700)
-
-#### Gráfico correlaciones
-
-correlations = base_corr.mark_rect().encode(
-    alt.Color('correlation_label:Q', title = 'Correlación')
-)
-
-
-#### Correlaciones en texto
-text_corr = base_corr.mark_text().encode(
-    text='correlation_label',
-    color=alt.condition(
-        alt.datum.correlation_label > 0.4, 
-        alt.value('white'),
-        alt.value('black')
-    )
-)
-
-
-## Renta ----------------------------------------------------------------------
-
-## Evolución por factores-------------------------------------------------------------------  
-
-#### Selector de intervalo
-
-select_int = alt.selection(type="interval",encodings=["x"])
-
-#### Gráfico de factores
-
-bar_factors = alt.Chart(df_visualization2).mark_bar(size = 25).encode(
-    alt.X('condiciones:N',
-         title = None,
-         axis = alt.Axis(labelAngle = -45.)),
-    alt.Y('mean(Ind_condiciones):Q', 
-          title = 'Individuos',
-          scale = alt.Scale(domain=[0, 50000000]),
-          axis = alt.Axis(format = ',.2s')),
-    tooltip='mean(Individuos):Q',
-).transform_filter(
-    (alt.datum.condiciones_posneg13 != 'Negativo-13') & (alt.datum.condiciones_posneg13 != 'Positivo-13') &
-    (alt.datum.condiciones_name != 'Situación Laboral') & (alt.datum.condiciones_posneg == 'Positivo') &
-    (alt.datum.condiciones_name != 'Estudios')
-).properties(
-    width=500,
-    height = 150
-).transform_filter(
-    select_int
-)
-
-#### Gráfico de evolución de quintiles
-
-line_quintile2 = alt.Chart(df_visualization2).mark_line(interpolate = 'monotone').encode(
-    alt.X('Year:N',
-         title = 'Año'),
-    alt.Y('mean(Individuos_quintiles):Q',
-          title = 'Individuos',
-          axis = alt.Axis(format =',.2s'),
-          scale=alt.Scale(domain=[6000000, 12000000])),
-    alt.Color('Quintiles',
-              legend = alt.Legend(title = 'Quintiles'))
-).properties(
-    width=500,
-    height = 250,
-    selection=select_int
-)
-
-# Chart combinado de factores y evolución
-evol_factors = alt.vconcat(line_quintile2, bar_factors,
-           resolve = alt.Resolve(scale = alt.LegendResolveMap(color = alt.ResolveMode('independent')))
-           ).configure_view(
-    strokeWidth=0
-)
-
-
-# Contenido-------------------------------------------------------------------------
-
-## Introducción----------------------------------------------------------------------
-
-st.title('Prediciendo la felicidad')
-st.subheader('Una reconstrucción de la felicidad en España durante los últimos 10 años')
-st.markdown(str(my_result(prediction)) + ' Evidentemente eso no quiere decir que tú te sientas así, simplemente es la puntuación más probable para alguien de tus características teniendo en cuenta la puntuación del resto de la población.' )
-st.markdown('Puedes cambiar las respuestas del cuestionario para hacerte una idea de cómo impactan las condiciones de vida en la felicidad de las personas.')
-
-st.markdown('**Distribución de la felicidad observada en España 2018 & 2019**')
-happines_histogram 
- 
-st.subheader('La evolución de la felicidad')
-st.markdown('La felicidad estimada por quintiles muestra una mayor proporción de personas en quintiles inferiores de los años2012 a 2014, mientras que la tendencia se invierte posteriormente, para acabar predominando el número de personas de los quintiles superiores')
-
-st.markdown('**Evolución de la felicidad estimada por quintiles 2008 a 2018**')
 happines_distribution
+st.markdown('Según el análisis de la felicidad estimada por Quintiles de felicidad longitudinales (división de todas las observaciones en conjunto en 5 rangos homogéneos en número) existe una importante inversión de la felicidad a partir del año 2012 que culmina en 2014 año en el que el crecimiento de la población de los quintiles inferiores se desacelera, para alcanzar en 2018 máximo histórico de la estimación, con casi 11,5 millones de españoles muy felices.')
+# Eliminar los datos del año 2009
+factors1 = ('Vacaciones_Sí', '"Colchón" económico Sí', 'Alto impacto coste vivienda', 'Riesgo de pobreza Sí',
+           'Carencia material severa','Enfermedades Crónicas Sí','Ocio con amigos Sí',
+           'Ocio en general Sí', 'Gasto en uno mismo Sí', 
+           'Acceso a internet Sí')
+factors2 = ('Vacaciones_Sí', '"Colchón" económico Sí', 'Alto impacto coste vivienda', 'Riesgo de pobreza Sí',
+           'Carencia material severa','Enfermedades Crónicas Sí')
 
-st.subheader('¿A qué se debe esto?')
-st.markdown('En la práctica hay muchos factores que impactan en la felicidad de las personas, como la amistad, la salud, o las condiciones económicas. Este modelo utiliza información sobre las condiones de vida, por lo que su fluctuación en el paso del tiempo afecta a las predicciones, así la posibilidad de irse de vacaciones o tener disponible un colchón económico son variables que impactan positivamente en el nivel de felicidad de los individuos.')
+## Solucionar tema filtros
 
-# Correlaciones
+st.subheader('Media por factores que afectan a la felicidad')
+st.markdown('\n')
+st.markdown('\n')
 
-st.markdown('**Top 15 factores por correlación positiva con la felicidad**')
-correlations + text_corr
+x1 = alt.Chart(df_vis_nac).mark_bar().encode(
+    x = alt.X('variable:O',title = None),
+    y = alt.Y('mean(Mean_conditions):Q',
+              title = 'Media',
+             scale=alt.Scale(domain=[0, 9])),
+    color = alt.Color('variable_posneg',
+                     title = 'Impacto' ),
+    tooltip = [alt.Tooltip('mean(Mean_conditions):Q', 
+                           title = 'Media',
+                           format=',.2f')]
+).transform_filter(
+    (datum.variable_category == 'Economía no básica')
+).transform_filter(
+    alt.FieldOneOfPredicate(field='variable', oneOf=['Vacaciones No', 'Vacaciones_Sí', 'Alimentación No',
+       'Alimentación Sí', '"Colchón" económico Sí',
+       '"Colchón" económico No', 'Alto impacto coste vivienda', 'Bajo impacto coste vivienda',
+       'Impacto medio coste vivienda', 'Calefacción No', 'Calefacción Sí',
+       'Riesgo de pobreza No', 'Riesgo de pobreza Sí',
+       'Carencia Material Severa No', 'Carencia material severa',
+       'Enfermedades Crónicas No', 'Enfermedades Crónicas Sí',
+       'Limitaciones físicas No', 'Limitaciones físicas leves Sí',
+       'Limitaciones físicas graves Sí', 'Compra de ropa No',
+       'Compra de ropa Sí', 'Compra de zapatos No',
+       'Compra de zapatos Sí', 'Ocio con amigos No', 'Ocio con amigos Sí',
+       'Ocio en general No', 'Ocio en general Sí',
+       'Gasto en uno mismo No', 'Gasto en uno mismo Sí',
+       'Acceso a internet No', 'Acceso a internet Sí'])
+).properties(
+    height = 300,
+    width = 300,
+    title = 'Variables económicas hedonistas')
 
-st.markdown('En este sentido, el mapa de correlaciones, muestra que existe mayor correlación con variables más relacionados con la satisfacción de necesidades sociales y de ocio que con otras más relacionadas con necesidades básicas.')
+x2 =alt.Chart(df_vis_nac).mark_bar().encode(
+    x = alt.X('variable:O',title = None),
+    y = alt.Y('mean(Mean_conditions):Q',
+              title = 'Media',
+             scale=alt.Scale(domain=[0, 9])),
+    color = alt.Color('variable_posneg',
+                     title = 'Impacto' ),
+    tooltip = [alt.Tooltip('mean(Mean_conditions):Q', 
+                           title = 'Media',
+                           format=',.2f')]
+).transform_filter(
+    (datum.variable_category == 'Economía básica')
+).transform_filter(
+    alt.FieldOneOfPredicate(field='variable', oneOf=['Vacaciones No', 'Vacaciones_Sí', 'Alimentación No',
+       'Alimentación Sí', '"Colchón" económico Sí',
+       '"Colchón" económico No', 'Alto impacto coste vivienda', 'Bajo impacto coste vivienda',
+       'Impacto medio coste vivienda', 'Calefacción No', 'Calefacción Sí',
+       'Riesgo de pobreza No', 'Riesgo de pobreza Sí',
+       'Carencia Material Severa No', 'Carencia material severa',
+       'Enfermedades Crónicas No', 'Enfermedades Crónicas Sí',
+       'Limitaciones físicas No', 'Limitaciones físicas leves Sí',
+       'Limitaciones físicas graves Sí', 'Compra de ropa No',
+       'Compra de ropa Sí', 'Compra de zapatos No',
+       'Compra de zapatos Sí', 'Ocio con amigos No', 'Ocio con amigos Sí',
+       'Ocio en general No', 'Ocio en general Sí',
+       'Gasto en uno mismo No', 'Gasto en uno mismo Sí',
+       'Acceso a internet No', 'Acceso a internet Sí'])
+).properties(
+    height = 300,
+    width = 300,
+    title = 'Variables económicas primera necedidad')
+
+x3 = alt.Chart(df_vis_nac).mark_bar().encode(
+    x = alt.X('variable:O',title = None),
+    y = alt.Y('mean(Mean_conditions):Q',
+             title = 'Media',
+             scale=alt.Scale(domain=[0, 9])),
+    color = alt.Color('variable_posneg',
+                     title = 'Impacto' ),
+    tooltip = [alt.Tooltip('mean(Mean_conditions):Q', 
+                     title = 'Media',
+                     format=',.2f')]
+).transform_filter(
+    (datum.variable_category == 'Situación económica')
+).transform_filter(
+    alt.FieldOneOfPredicate(field='variable', oneOf=['Vacaciones No', 'Vacaciones_Sí', 'Alimentación No',
+       'Alimentación Sí', '"Colchón" económico Sí',
+       '"Colchón" económico No', 'Alto impacto coste vivienda', 'Bajo impacto coste vivienda',
+       'Impacto medio coste vivienda', 'Calefacción No', 'Calefacción Sí',
+       'Riesgo de pobreza No', 'Riesgo de pobreza Sí',
+       'Carencia Material Severa No', 'Carencia material severa',
+       'Enfermedades Crónicas No', 'Enfermedades Crónicas Sí',
+       'Limitaciones físicas No', 'Limitaciones físicas leves Sí',
+       'Limitaciones físicas graves Sí', 'Compra de ropa No',
+       'Compra de ropa Sí', 'Compra de zapatos No',
+       'Compra de zapatos Sí', 'Ocio con amigos No', 'Ocio con amigos Sí',
+       'Ocio en general No', 'Ocio en general Sí',
+       'Gasto en uno mismo No', 'Gasto en uno mismo Sí',
+       'Acceso a internet No', 'Acceso a internet Sí'])
+).properties(
+    height = 300,
+    width = 300,
+    title = 'Variables descriptivas de la situación económica')
+
+x4 = alt.Chart(df_vis_nac).mark_bar().encode(
+    x = alt.X('variable:O',title = None),
+    y = alt.Y('mean(Mean_conditions):Q',
+             title = 'Media',
+             scale=alt.Scale(domain=[0, 9])),
+    color = alt.Color('variable_posneg',
+                     title = 'Impacto' ),
+    tooltip = [alt.Tooltip('mean(Mean_conditions):Q', 
+                           title = 'Media',
+                           format=',.2f')]
+).transform_filter(
+    (datum.variable_category == 'Salud')
+).transform_filter(
+    alt.FieldOneOfPredicate(field='variable', oneOf=['Vacaciones No', 'Vacaciones_Sí', 'Alimentación No',
+       'Alimentación Sí', '"Colchón" económico Sí',
+       '"Colchón" económico No', 'Alto impacto coste vivienda', 'Bajo impacto coste vivienda',
+       'Impacto medio coste vivienda', 'Calefacción No', 'Calefacción Sí',
+       'Riesgo de pobreza No', 'Riesgo de pobreza Sí',
+       'Carencia Material Severa No', 'Carencia material severa',
+       'Enfermedades Crónicas No', 'Enfermedades Crónicas Sí',
+       'Limitaciones físicas No', 'Limitaciones físicas leves Sí',
+       'Limitaciones físicas graves Sí', 'Compra de ropa No',
+       'Compra de ropa Sí', 'Compra de zapatos No',
+       'Compra de zapatos Sí', 'Ocio con amigos No', 'Ocio con amigos Sí',
+       'Ocio en general No', 'Ocio en general Sí',
+       'Gasto en uno mismo No', 'Gasto en uno mismo Sí',
+       'Acceso a internet No', 'Acceso a internet Sí'])
+).properties(
+    height = 300,
+    width = 300,
+    title = 'Variables de estado de salud')
+
+(x1 | x2) 
+(x3 | x4)
+
+st.markdown('La razón por la cual la estimación fluctúa por años es que la población no es estática, sus condiciones cambian debido a muy diversos factores, algunos de ellos dependen del contexto como la economía que si se hunde causa [precariedad y malestar](https://bura.brunel.ac.uk/handle/2438/926) y se dispara [una explosión de transitorio optimismo.](https://es.wikipedia.org/wiki/Felices_a%C3%B1os_veinte). Otros factores como [la salud](https://journals.sagepub.com/doi/10.2190/QGJN-0N81-5957-HAQD), aunque a priori más estáticos también tiene un impacto en las condiciones de vida y la felicidad de los individuos')
+
+st.subheader('Mediana de renta familiar por nivel de felicidad')
+st.markdown('\n')
+st.markdown('\n')
+df_renta = model.groupby(['LifeSatisfaction0','Year'])['vhRentaa_xperson'].agg(['mean','std','min','max','median','count']).reset_index()
+renta = alt.Chart(df_renta).mark_circle().encode(
+    alt.X('median', scale=alt.Scale(domain=[6000, 24000]),title = 'Evaluación economía'),
+    alt.Y('LifeSatisfaction0',scale=alt.Scale(domain=[0, 11]), title = 'Felicidad'),
+    size= alt.Size('count', 
+                   scale=alt.Scale(domain=[0,700]),
+                   title = 'Individuos',
+                   legend = alt.Legend(orient = 'bottom')),
+    color = alt.Color('Year:N', legend = alt.Legend(orient = 'bottom-left')),
+    tooltip = [alt.Tooltip('Year', title = 'Año'),
+               alt.Tooltip('median', title = 'Mediana'),
+               alt.Tooltip('mean', title = 'Media')]
+).properties(
+    width=700,
+    height=550,
+).interactive()
 
 
-st.subheader('Entonces, ¿De dónde vienen los cambios?')
-st.markdown('Es dificil estimar una única razón por la que un año recibe una estimación más alta que otra, aunque en este sentido, en el gráfico de debajo se que podemos observar cómo tanto la posibilidad de irse de vacaciones o tener ese colchón económico son las condiciones que más varían. Por otro lado otras condiciones como la salud tienden a mantenerse más estables.')
+renta ## Ver si ponderar
 
-st.markdown('**La evolución de las condiciones de vida**')
-evol_factors
+st.markdown('But does money really matters? Pues... agrupando la felicidad por tramos tanto la mediana como la media de la renta tienden a ser más altas, aunque evidentemente muchos otros factores juegan un papel. Lo que sí parece interesante es que los individuos más felices en se ubican tanto para 2013 y 2018 en la cuarta mediana más alta. En cualquier caso que aquellos que tienen las rentas más altas no tienen porque ser los más felices es algo que [ya estaba demostrado](https://www.pnas.org/content/107/38/16489), si bien parece más adecuado hablar de niveles de renta que de una cantidad concreta.')
+
+st.subheader('Evolución de los factores que afectan a la felicidad')
+selection = st.selectbox('Elige un indicador para ver su evolución',factors1 ) 
+df_cond = df_vis_nac[df_vis_nac['variable'] == selection]
+st.markdown('\n')
+
+#### Filtro
+
+bar_cond = alt.Chart(df_cond).mark_bar(size = 50,interpolate = 'monotone',).encode(
+    x = alt.X('Year:O', title = 'Año',
+          axis=alt.Axis(values= [2008,2009,2010,2011,2012,2013,2014,2015,2016,2017,2018])),
+    y = alt.Y('mean(Ind_conditions_prop):Q', 
+          title = 'Individuos', 
+          axis = alt.Axis(format ='.0%')),
+    tooltip = [alt.Tooltip('Year:O', title = 'Año'),
+               alt.Tooltip('mean(Ind_conditions_prop):Q', title = '(%) Individuos')           ]
+).properties(
+    height = 400,
+    width = 700
+)
+
+bar_cond
+st.markdown('Algunos de los factores que se relacionan con la el nivel de felicidad de lo individuos fluctúan temporalmente más de lo que probablemente a ellos les gustaría. Este modelo sólo utiliza variables medidas durante la serie histórica, pero puedes seleccionar las variables que están presentes sólo durante 2009 y a partir de 2013 para ver cómo evolucionan ya que nos da una idea de las posibilidades de consumo hedonista a través del tiempo.')
+
+df_2 = pd.melt(df, id_vars=['Year','Region','PIB_percapita_','Quintiles'],value_vars = ['Ind_condition_quint_prop'])
+df_2 = df_2[df_2['Quintiles'] == '5º - Superior']
+df_2 = df_2.drop_duplicates()
+df_3 = df.groupby(['Year','Region','variable'])['Ind_conditions_prop'].mean().reset_index()
+df_4 = df_2.merge(df_3, right_on = ['Year','Region'], left_on = ['Year','Region'])
+
+st.subheader('Propoción de individuos en el superior vs PIB per cápita por regiones')
+st.markdown('Si temporalmente existen diferencias en el nivel de felicidad, parece coherente pensar que pasará lo mismo si analizamos los datos por región')
+selection2 = st.selectbox('Elige un indicador para ver las diferencias por región.',factors2) 
+
+
+value = st.slider("slider", 2008,2018)
+
+        
+df_5 = df_4[(df_4['Year'] == value) & (df_4['variable_y'] == selection2)]
+
+happiness_regions = alt.Chart(df_5).mark_circle(size=500).encode(
+    x = alt.X('mean(value):Q',
+         title = '(%) Quintil 5 - Superior',
+         scale=alt.Scale(domain=[0.05, 0.45]),
+         axis = alt.Axis(format = ".0%")),
+    y = alt.Y('PIB_percapita_:Q',
+         title = 'PIB per cápita (MM)',
+         scale=alt.Scale(domain=[10, 40])),
+    color = alt.Color('Region:N',
+                     legend = None),
+    tooltip = [alt.Tooltip('Region:N', 
+                           title = 'CCAA'),
+              alt.Tooltip('Year', 
+                          title = 'Año'),
+              alt.Tooltip('mean(value):Q', 
+                          title = '% Quintil 5',
+                          format = ".0%")],
+    size = alt.Size('mean(Ind_conditions_prop):Q',
+             scale=alt.Scale(domain=[0, 0.7]),
+             title = '% de individuos',
+             legend = alt.Legend(orient = 'bottom'))
+).properties(
+    height = 500,
+    width = 700
+)
+    
+    
+happiness_regions
+st.markdown('Pues a priori parece que algo hay, aunque existe controversia sobre hasta qué punto afecta realmente [la riqueza a la felicidad] (https://www.iza.org/publications/dp/11994/different-versions-of-the-easterlin-paradox-new-evidence-for-european-countries), la reconstrucción parece indicar que tanto a nivel regional como temporal se producen diferencias teniendo encuenta PIB por habitante y la proporción de invididuos muy felices durante los últimos 10 años en España.')
+
+
+
