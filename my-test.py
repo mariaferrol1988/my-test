@@ -157,7 +157,7 @@ happines_histogram = alt.layer(
 
 happines_histogram 
 
-st.markdown('Aunque parece evidente que las circunstancias vitales impactan en la felicidad de las personas en la actualidad tendemos a culpar al individuo en todos lo ámbitos, incluída la finalidad vita por antonomasia: Ser Féliz. Esta reconstrucción teórica basada en predicciones realizadas a través de los años 2013 y 2018 busca dar una visión transversal con el objetivo de reflexionar sobre las condiciones que hacen que unas personas tengan mayor probabilidad de ser feliz que otras.')
+st.markdown('Aunque parece evidente que las circunstancias vitales impactan en la felicidad de las personas en la actualidad tendemos a culpar al individuo en todos lo ámbitos, incluída la finalidad vita por antonomasia: Ser feliz. Esta reconstrucción teórica basada en predicciones realizadas a través de los años 2013 y 2018 busca dar una visión transversal con el objetivo de reflexionar sobre las condiciones que hacen que unas personas tengan mayor probabilidad de ser feliz que otras.')
 st.markdown('\n')
 
 #### PIB
