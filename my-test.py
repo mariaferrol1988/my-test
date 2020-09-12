@@ -86,7 +86,7 @@ df_qnr = pd.DataFrame({'vhRentaa': [renta],
 ## Variables modelo
 X = model[['vhRentaa','HousingCost_HighImpactHH',
      'MDSelf_Yes', 'MDLeisure_Yes',  'MDFriends_Yes', 'MDShoes_Yes', 'MDClothes_Yes','CHealth','AREMonth']]
-y = model['LifeSatisfaction0']
+y = model['LifeSatisfaction2']
 
 ## Modelo
 reg = LinearRegression()
